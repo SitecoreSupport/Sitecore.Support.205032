@@ -10,7 +10,6 @@
 namespace Sitecore.Support.Commerce.Data.Products
 {
     using System;
-    using System.Globalization;
     using System.IO;
     using System.Linq;
 
@@ -23,7 +22,6 @@ namespace Sitecore.Support.Commerce.Data.Products
     using Sitecore.Commerce.Entities.Products;
     using Sitecore.Data;
     using Sitecore.Data.Items;
-    using Constants = Buckets.Util.Constants;
 
     public class ResourceRepository : ArtifactRepository<Resource>
     {
@@ -89,88 +87,40 @@ namespace Sitecore.Support.Commerce.Data.Products
 
         protected override void UpdateEntityItem(Item entityItem, Resource entity)
         {
-            var extension = string.Empty;
-
-            if (!string.IsNullOrEmpty(entity.MimeType))
+            try
             {
-                var mediaTypeConfig = mediaProvider.Config.GetMediaTypeConfigByMime(entity.MimeType);
-                extension = mediaTypeConfig.Extensions.Split(new[] {", "}, StringSplitOptions.RemoveEmptyEntries)
-                    .First();
-            }
+                var extension = string.Empty;
 
-            if (extension == "*")
-                extension = entity.MimeType.ToLowerInvariant().StartsWith("image", StringComparison.OrdinalIgnoreCase)
-                    ? Settings.Media.DefaultImageFormat
-                    : string.Empty;
-
-            var mediaItem = new MediaItem(entityItem);
-            var media = MediaManager.GetMedia(mediaItem);
-
-            using (var stream = new MemoryStream(entity.BinaryData))
-            {
-                media.SetStream(stream, extension);
-            }
-
-            using (new EditContext(entityItem))
-            {
-                entityItem.Name = entity.Name;
-            }
-        }
-
-        protected override Item ProcessEntityItem(Item entityItem, Resource entity)
-        {
-            var extension = string.Empty;
-
-            if (!string.IsNullOrEmpty(entity.MimeType))
-            {
-                var mediaTypeConfig = mediaProvider.Config.GetMediaTypeConfigByMime(entity.MimeType);
-                extension = mediaTypeConfig.Extensions.Split(new[] {", "}, StringSplitOptions.RemoveEmptyEntries)
-                    .First();
-            }
-
-            if (extension == "*")
-                extension = entity.MimeType.ToLowerInvariant().StartsWith("image", StringComparison.OrdinalIgnoreCase)
-                    ? Settings.Media.DefaultImageFormat
-                    : string.Empty;
-
-            var path = entityItem.Paths.FullPath + "/" + entity.Name;
-            var options = new MediaCreatorOptions
-            {
-                Database = Database,
-                Destination = path,
-                AlternateText = entity.Name,
-                OverwriteExisting = true
-            };
-            var entityItemId = GetEntityItemId(entityItem, GetEntityKey(entityItem, entity));
-
-
-            using (var stream = new MemoryStream(entity.BinaryData))
-            {
-                var fullPath = !string.IsNullOrEmpty(extension)
-                    ? string.Format(CultureInfo.InvariantCulture, "{0}.{1}", path, extension)
-                    : path;
-
-                var result = mediaProvider.Creator.CreateFromStream(stream, fullPath, options);
-                Assert.IsNotNull(result, Texts.FailedToCreateItemForTheEntityBeingSynchronized);
-
-                using (new EditContext(result))
+                if (!string.IsNullOrEmpty(entity.MimeType))
                 {
-                    result.Fields[ID.Parse(Constants.BucketableField)].Value = "1";
+                    var mediaTypeConfig = mediaProvider.Config.GetMediaTypeConfigByMime(entity.MimeType);
+                    extension = mediaTypeConfig.Extensions.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries)
+                        .First();
                 }
 
-                return result;
-            }
-        }
+                if (extension == "*")
+                    extension = entity.MimeType.ToLowerInvariant().StartsWith("image", StringComparison.OrdinalIgnoreCase)
+                        ? Settings.Media.DefaultImageFormat
+                        : string.Empty;
 
-        protected override Item CreateEntityItem([NotNull] Item root, [NotNull] Item entityItemImmediateRoot,
-            [NotNull] Resource entity, bool moveToBucket)
-        {
-            var result = ProcessEntityItem(root, entity);
+                var mediaItem = new MediaItem(entityItem);
+                var media = MediaManager.GetMedia(mediaItem);
 
-            MoveItemIntoBucket(root, result, entity, moveToBucket);
-            SetEntityItemStatistics(result, entity);
+                using (var stream = new MemoryStream(entity.BinaryData))
+                {
+                    media.SetStream(stream, extension);
+                }
 
-            return result;
+                using (new EditContext(entityItem))
+                {
+                    entityItem.Name = entity.Name;
+                }
+
+      }
+            catch (Exception e)
+            {
+                Sitecore.Diagnostics.Log.Warn("Resource item externalId="+entity.ExternalId+" and Name="+entity.Name+" wasn't updated.", e, this);
+            } 
         }
     }
 }
